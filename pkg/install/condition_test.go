@@ -270,14 +270,21 @@ func TestClusterVersionReady(t *testing.T) {
 }
 
 func TestIngressControllerReady(t *testing.T) {
+	cert := operatorv1.IngressControllerSpec{
+		DefaultCertificate: &corev1.LocalObjectReference{
+			Name: "testing",
+		},
+	}
+
 	for _, tt := range []struct {
 		name                string
 		controllerName      string
 		controllerNamespace string
 		observedGeneration  int64
+		isDev               bool
+		defaultCertificate  operatorv1.IngressControllerSpec
 		availableCondition  operatorv1.ConditionStatus
 		want                bool
-		defaultCertificate  *corev1.LocalObjectReference
 	}{
 		{
 			name: "Can't get ingress controllers for openshift-ingress-operator namespace",
@@ -291,38 +298,38 @@ func TestIngressControllerReady(t *testing.T) {
 			name:                "generation != observedGeneration",
 			controllerName:      "default",
 			controllerNamespace: "openshift-ingress-operator",
-			defaultCertificate: &corev1.LocalObjectReference{
-				Name: "test",
-			},
+		},
+		{
+			name:                "Cert is nil",
+			controllerName:      "default",
+			controllerNamespace: "openshift-ingress-operator",
+			observedGeneration:  1,
 		},
 		{
 			name:                "Ingress controller not ready",
 			controllerName:      "default",
 			controllerNamespace: "openshift-ingress-operator",
 			observedGeneration:  1,
+			defaultCertificate:  cert,
 			availableCondition:  operatorv1.ConditionFalse,
-			defaultCertificate: &corev1.LocalObjectReference{
-				Name: "test",
-			},
+		},
+		{
+			name:                "Env is dev; ingress controller ready",
+			controllerName:      "default",
+			controllerNamespace: "openshift-ingress-operator",
+			observedGeneration:  1,
+			isDev:               true,
+			availableCondition:  operatorv1.ConditionTrue,
+			want:                true,
 		},
 		{
 			name:                "Ingress controller ready",
 			controllerName:      "default",
 			controllerNamespace: "openshift-ingress-operator",
 			observedGeneration:  1,
+			defaultCertificate:  cert,
 			availableCondition:  operatorv1.ConditionTrue,
 			want:                true,
-			defaultCertificate: &corev1.LocalObjectReference{
-				Name: "test",
-			},
-		},
-		{
-			name:                "Ingress controller not ready certificate",
-			controllerName:      "default",
-			controllerNamespace: "openshift-ingress-operator",
-			observedGeneration:  1,
-			availableCondition:  operatorv1.ConditionTrue,
-			want:                false,
 		},
 	} {
 		i := &Installer{
@@ -343,14 +350,12 @@ func TestIngressControllerReady(t *testing.T) {
 								},
 							},
 						},
-						Spec: operatorv1.IngressControllerSpec{
-							DefaultCertificate: tt.defaultCertificate,
-						},
+						Spec: tt.defaultCertificate,
 					},
 				},
 			}),
 		}
-		ready, err := i.ingressControllerReady()
+		ready, err := i.ingressControllerReady(tt.isDev)
 		if err != nil {
 			t.Error(errMustBeNilMsg)
 		}

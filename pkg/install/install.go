@@ -179,7 +179,10 @@ func (i *Installer) Install(ctx context.Context, installConfig *installconfig.In
 			action(i.disableOperatorHubSources),
 			action(i.updateRouterIP),
 			action(i.configureIngressCertificate),
-			condition{i.ingressControllerReady, 30 * time.Minute},
+			condition{func() (bool, error) {
+				_, isDev := i.env.(env.Dev)
+				return i.ingressControllerReady(isDev)
+			}, 30 * time.Minute},
 			action(i.finishInstallation),
 		},
 	}
